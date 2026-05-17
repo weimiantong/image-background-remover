@@ -1,6 +1,6 @@
 # Image Background Remover - MVP 需求文档
 
-> 版本：v1.0 | 日期：2026-05-17 | 作者：weimiantong
+> 版本：v1.1 | 日期：2026-05-17 | 作者：weimiantong
 
 ---
 
@@ -25,7 +25,7 @@
 ```
 用户浏览器
     │
-    ├── 上传图片 ──→ Cloudflare Worker（API 代理）
+    ├── 上传图片 ──→ Next.js API Route（/api/remove）
     │                      │
     │                      └──→ Remove.bg API（去背景）
     │                      │
@@ -38,16 +38,19 @@
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| 前端 | Vite + React + TypeScript + Tailwind CSS | 轻量快速 |
-| 后端 | Cloudflare Workers | 无服务器，全球边缘部署 |
+| 框架 | Next.js | 前端 + API Route 一体，无需独立后端 |
+| 样式 | Tailwind CSS | 原子化 CSS，快速构建 UI |
+| 语言 | TypeScript | 类型安全 |
 | AI | Remove.bg API | 成熟的图片去背景服务 |
-| 部署 | Cloudflare Pages + Workers | 免费额度充足 |
+| 部署 | Vercel | 一键部署，免费额度充足 |
 | 存储 | 无 | 图片仅内存流转，不落盘 |
 
 ### 2.2 为什么这样选
 
+- **Next.js**：API Route 原生支持后端代理，无需额外部署 Cloudflare Worker；SSR 利于后续 SEO 和落地页优化
+- **Tailwind CSS**：与 Next.js 生态深度集成，开发效率高
+- **Vercel**：Next.js 官方平台，零配置部署，免费额度覆盖 MVP
 - **Remove.bg API**：效果稳定，接入简单，按次计费（免费额度 50 次/月）
-- **Cloudflare Workers**：做 API 代理，隐藏 Remove.bg API Key，避免前端暴露
 - **无存储**：图片在内存中处理完即销毁，保护用户隐私
 
 ---
@@ -60,7 +63,7 @@
 |---|------|------|
 | F1 | 上传图片 | 支持拖拽上传 + 点击选择，限制格式 PNG/JPG/WEBP，限制大小 10MB |
 | F2 | 前端预览 | 上传后立即显示原图预览 |
-| F3 | 一键去背景 | 点击按钮 → 调用 Remove.bg API → 返回去背景结果 |
+| F3 | 一键去背景 | 点击按钮 → 调用 /api/remove → 返回去背景结果 |
 | F4 | 结果预览 | 棋盘格背景显示透明区域，支持原图/结果切换对比 |
 | F5 | 下载结果 | 一键下载透明 PNG 文件 |
 
@@ -126,7 +129,7 @@
 
 ## 5. API 设计
 
-### 5.1 Cloudflare Worker 端点
+### 5.1 Next.js API Route
 
 **POST `/api/remove`**
 
@@ -150,7 +153,7 @@ Body: image file (PNG/JPG/WEBP, max 10MB)
 ```
 POST https://api.remove.bg/v1.0/removebg
 Headers:
-  X-Api-Key: <API_KEY>        ← 存在 Cloudflare Worker 环境变量中
+  X-Api-Key: <API_KEY>        ← 存在 Vercel 环境变量中
 Body: (multipart/form-data)
   image_file: <binary>
   size: auto
@@ -164,26 +167,26 @@ Body: (multipart/form-data)
 ```
 image-background-remover/
 ├── src/
+│   ├── app/
+│   │   ├── layout.tsx          # 根布局
+│   │   ├── page.tsx            # 首页
+│   │   ├── globals.css         # Tailwind 入口样式
+│   │   └── api/
+│   │       └── remove/
+│   │           └── route.ts    # 去背景 API 路由
 │   ├── components/
 │   │   ├── DropZone.tsx        # 拖拽上传区域
 │   │   ├── ImagePreview.tsx    # 图片预览（棋盘格背景）
 │   │   ├── CompareView.tsx     # 原图/结果对比
 │   │   └── Header.tsx          # 页头
-│   ├── hooks/
-│   │   └── useRemoveBg.ts      # 去背景 API 调用 hook
-│   ├── App.tsx                 # 主页面
-│   ├── main.tsx                # 入口
-│   └── index.css               # Tailwind 样式
-├── worker/
-│   └── index.ts                # Cloudflare Worker（API 代理）
+│   └── hooks/
+│       └── useRemoveBg.ts      # 去背景 API 调用 hook
 ├── public/
 │   └── favicon.svg
-├── index.html
-├── package.json
+├── next.config.ts
+├── tailwind.config.ts
 ├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.js
-├── wrangler.toml               # Cloudflare Workers 配置
+├── package.json
 └── README.md
 ```
 
@@ -198,7 +201,7 @@ image-background-remover/
 | 处理时长 | 依赖 Remove.bg，通常 2-5 秒 |
 | API 免费额度 | 50 次/月（Remove.bg 免费计划） |
 | 无存储 | 图片不落盘，内存处理完即销毁 |
-| API Key 安全 | 仅在 Cloudflare Worker 中使用，前端不可见 |
+| API Key 安全 | 仅在 API Route 服务端使用，前端不可见 |
 
 ---
 
@@ -219,7 +222,7 @@ image-background-remover/
 |------|------|
 | Remove.bg 免费额度用完 | 前端显示友好提示，后续可切换付费计划或换 API |
 | 大图片处理慢 | 前端压缩到合理尺寸再上传 |
-| API Key 泄露 | 严格通过 Worker 代理，不暴露到前端 |
+| API Key 泄露 | 严格通过 API Route 服务端代理，不暴露到前端 |
 
 ---
 
@@ -227,7 +230,7 @@ image-background-remover/
 
 | 阶段 | 内容 | 预计 |
 |------|------|------|
-| M1 | 项目初始化 + 基础 UI + 上传功能 | Day 1 |
-| M2 | Cloudflare Worker + Remove.bg API 对接 | Day 1 |
+| M1 | 项目初始化 + Next.js + Tailwind 基础 UI + 上传功能 | Day 1 |
+| M2 | API Route + Remove.bg API 对接 | Day 1 |
 | M3 | 预览对比 + 下载功能 | Day 1 |
-| M4 | 错误处理 + 移动端适配 + 部署上线 | Day 2 |
+| M4 | 错误处理 + 移动端适配 + Vercel 部署上线 | Day 2 |
