@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = 'edge';
+
 const REMOVE_BG_API_URL = "https://api.remove.bg/v1.0/removebg";
 
 export async function POST(req: NextRequest) {
+  // Cloudflare Pages: env vars are available via process.env in edge runtime
+  // when configured in wrangler.toml or Cloudflare dashboard
   const apiKey = process.env.REMOVE_BG_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -72,11 +76,9 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "image/png",
-        "Content-Length": resultBuffer.byteLength.toString(),
       },
     });
   } catch (err: any) {
-    console.error("Remove.bg proxy error:", err);
     return NextResponse.json(
       { error: "Internal server error", code: "INTERNAL_ERROR" },
       { status: 500 }
